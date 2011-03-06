@@ -21,8 +21,8 @@ int one        = 1000;   // This pulse sets the threshold for a transmission tha
 int zero       = 400;    // This pulse sets the threshold for a transmission that represents a 0
 int trigger;             // This is used to hold the value of the trigger read;
 boolean fired  = false;  // Boolean used to remember if the trigger has already been read.
-int reload;             // This is used to hold the value of the trigger read;
-boolean reloaded  = false;  // Boolean used to remember if the trigger has already been read.
+int reload;             // This is used to hold the value of the reload read;
+boolean reloaded  = false;  // Boolean used to remember if the reload button has already been read.
 
 int ret[2];              // Used to hold results from IR sensing.
 int waitTime = 300;      // The amount of time to wait between pulses
@@ -55,10 +55,10 @@ void setup() {
   pinMode(speakerPin, OUTPUT);
   pinMode(senderPin, OUTPUT);
   pinMode(triggerPin, INPUT);
-  //digitalWrite(triggerPin, HIGH);
+  digitalWrite(triggerPin, HIGH); // Enable the pin's internal pull up resistors
   pinMode(sensorPin, INPUT);
   pinMode(reloadPin, INPUT);
-  //digitalWrite(reloadPin, HIGH);
+  digitalWrite(reloadPin, HIGH); // Enable the pin's internal pull up resistors
   randomSeed(analogRead(0));
   for (int i = 1;i < 4;i++) {
     digitalWrite(blinkPin, HIGH);
