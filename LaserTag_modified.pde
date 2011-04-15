@@ -7,48 +7,73 @@
  * The Audio portion of the code was derived from the Melody tutorial on the Arduino wiki
  * You can find the original tutorial here: http://arduino.cc/en/Tutorial/Melody
  */
+//#include <AikoDevices.h>
+#include <AikoEvents.h>
+#include <LiquidCrystal.h>
 
-int sensorPin  = 2;      // Sensor pin 1
-int senderPin  = 3;      // Infrared LED on Pin 3
-int triggerPin = 4;      // Pushbutton Trigger on Pin 4
-int reloadPin  = 5;      // Added by george Patterson
-int speakerPin = 12;     // Positive Lead on the Piezo
-int blinkPin   = 13;     // Positive Leg of the LED we will use to indicate signal is received
 
-int startBit   = 2000;   // This pulse sets the threshold for a transmission start bit
-int endBit     = 3000;   // This pulse sets the threshold for a transmission end bit
-int one        = 1000;   // This pulse sets the threshold for a transmission that represents a 1
-int zero       = 400;    // This pulse sets the threshold for a transmission that represents a 0
-int trigger;             // This is used to hold the value of the trigger read;
-boolean fired  = false;  // Boolean used to remember if the trigger has already been read.
-int reload;             // This is used to hold the value of the reload read;
+
+using namespace Aiko;
+//using namespace Device;
+
+#define releaseBanner "LaserTag Geo 2.3"
+#define sensorPin  2      // Sensor pin 1
+#define senderPin  3      // Infrared LED on Pin 3
+#define triggerPin 4      // Pushbutton Trigger on Pin 4
+#define reloadPin  5      // Added by george Patterson
+
+//#define lcdRS      6
+//#define lcdEnable  7
+//#define lcdD4      8
+//#define lcdD5      9
+//#define lcdD6      10
+//#define lcdD7      11
+
+#define speakerPin 12     // Positive Lead on the Piezo
+#define blinkPin   13     // Positive Leg of the LED we will use to indicate signal is received
+
+#define startBit  2000    // This pulse sets the threshold for a transmission start bit
+#define endBit    3000    // This pulse sets the threshold for a transmission end bit
+#define one       1000    // This pulse sets the threshold for a transmission that represents a 1
+#define zero       400    // This pulse sets the threshold for a transmission that represents a 0
+
+// initialize the library with the numbers of the interface pins
+//LiquidCrystal lcd(12, 11, 5, 4, 3, 2);
+//These pins are probably incorrect!
+//LiquidCrystal lcd(lcdRS, lcdEnable, lcdD4, lcdD5, lcdD6, lcdD7);
+
+
+int trigger;              // This is used to hold the value of the trigger read;
+boolean fired     = false;  // Boolean used to remember if the trigger has already been read.
+int reload;                 // This is used to hold the value of the reload read;
 boolean reloaded  = false;  // Boolean used to remember if the reload button has already been read.
 
-int ret[2];              // Used to hold results from IR sensing.
-int waitTime = 300;      // The amount of time to wait between pulses
+int ret[2];               // Used to hold results from IR sensing.
+#define waitTime  300     // The amount of time to wait between pulses
 
-int playerLine = 14;     // Any player ID >= this value is a referee, < this value is a player;
-int myCode     = 3;      // This is your unique player code;
-int myLevel    = 1;      // This is your starting level;
-int maxShots   = 6;      // You can fire 6 safe shots;
-int maxHits    = 6;      // After 6 hits you are dead;
-int myShots    = 0;      // You can fire 6 safe shots;
-int myHits     = 0;      // After 6 hits you are dead;
+#define playerLine 14     // Any player ID >= this value is a referee, < this value is a player;
+byte myCode     =   3;    // This is your unique player code; //Make this dynamic. Either fetch it from the server whentas server is found, or read it from the RFBee chipset.
+int myLevel     =   1;    // This is your starting level;
+int maxShots    =   30;    // You can fire 6 safe shots;
+int maxHits     =   6;    // After 6 hits you are dead;
+int myShots     =   0;    // You can fire 6 safe shots;
+int myHits      =   0;    // After 6 hits you are dead;
 
 // Added by George Patterson
-int maxReloads = 4;
+#define maxReloads  4
 int myReloads = 0;
 
-int maxLevel   = 9;      // You cannot be promoted past level 9;
-int minLevel   = 0;      // You cannot be demoted past level 0
+#define maxLevel    9      // You cannot be promoted past level 9;
+#define minLevel    0      // You cannot be demoted past level 0
 
-int refPromote = 0;      // The refCode for promotion;
-int refDemote  = 1;      // The refCode for demotion;
-int refReset   = 2;      // The refCode for ammo reset;
-int refRevive  = 3;      // The refCode for revival;
+#define refPromote  0      // The refCode for promotion;
+#define refDemote   1      // The refCode for demotion;
+#define refReset    2      // The refCode for ammo reset;
+#define refRevive   3      // The refCode for revival;
 
-int replySucc  = 14;     // the player code for Success;
-int replyFail  = 15;     // the player code for Failed;
+#define replySucc  14     // the player code for Success;
+#define replyFail  15
+// the player code for Failed;
 
 void setup() {
   pinMode(blinkPin, OUTPUT);
@@ -60,7 +85,13 @@ void setup() {
   pinMode(reloadPin, INPUT);
   digitalWrite(reloadPin, HIGH); // Enable the pin's internal pull up resistors
   randomSeed(analogRead(0));
-  for (int i = 1;i < 4;i++) {
+ 
+  // This line is temporary.. for debugging purposes 
+  Serial.println(releaseBanner); 
+  //lcd.setCursor(0,0);
+  //lcd.print(releaseBanner);
+  
+  for (int i = 1; i < 4; i++) {
     digitalWrite(blinkPin, HIGH);
     playTone(900*i, 200);
     digitalWrite(blinkPin, LOW);
@@ -68,13 +99,18 @@ void setup() {
   }
 
   Serial.begin(9600);
-  Serial.println("LaserTag George v2");
-  Serial.println("Ready: ");
+  //This should be only written out to the LCD.. when implemented
+  //lcd.setCursor(0,0);
+  //lcd.print("Ready!");
+  Serial.println("Ready ");
+  Events.addHandler(senseFire, 100);
+  Events.addHandler(senseReload, 100);
+  Events.addHandler(displayTime, 1000);
 }
 
 void loop() {
-  senseFire();
-  senseReload();
+  //senseFire();
+  //senseReload();
   senseIR();
 
   if (ret[0] != -1) {
@@ -83,9 +119,14 @@ void loop() {
     Serial.print(ret[0]);
     Serial.print(" What: ");
     Serial.println(ret[1]);
+    //lcd.setCursor(0,0);
+    //lcd.print("Shot by: ");
+    // The following commented line might be required!
+    //lcd.setCursor(0,9);
+    //lcd.print(ret[0]);
     if (ret[0] >= playerLine) {
       if (ret[1] == refPromote) {
-        // Promote
+        // Promote 
         if (myLevel < maxLevel) {
           Serial.println("PROMOTED!");
           myLevel++;
@@ -150,6 +191,7 @@ void loop() {
       }
     }
   }
+  Events.loop();
 }
 
 void senseIR() {
@@ -179,7 +221,7 @@ void senseIR() {
   }
   Serial.println("---who---");
   for(int i=0;i<=3;i++) {
-    Serial.println(who[i]);
+    //Serial.println(who[i]);
     if(who[i] > one) {
       who[i] = 1;
     } 
@@ -238,25 +280,31 @@ int convert(int bits[]) {
   return result;
 }
 
+void displayTime() {
+  // This procedure will need to be fleshed out to display the game time(s)
+  //lcd.setCursor(0,1);
+  //lcd.print (millis()/1000);
+}
+
 void senseFire() {
   trigger = digitalRead(triggerPin);
   if (trigger == LOW && fired == false) {
-    Serial.println("Fire Button Pressed");
+    //Serial.println("Fire Button Pressed");
     fired = true;
     myShots++;
     if (myHits <= maxHits && myShots > maxShots && random(1,20) <= myShots) {
-      Serial.println("SELF DESTRUCT");
+      Serial.println("Out of Ammo");
       selfDestruct();
     } 
     else if (myHits <= maxHits) {
-      Serial.print("Firing Shot: ");
+      //Serial.print("Firing Shot: ");
       Serial.println(myShots);
       fireShot(myCode, myLevel);
     }
   } 
   else if (trigger == HIGH) {
     if (fired == true) {
-      Serial.println("Fire Button Released");
+      //Serial.println("Fire Button Released");
     }
     // reset the fired variable
     fired = false;
@@ -269,7 +317,7 @@ void senseReload() {
     Serial.println("Reload Button Pressed");
     reloaded = true;
     //myShots++;
-    Serial.println("AMMO RESET!");
+    //Serial.println("AMMO RESET!");
     myShots = 0;
     myHits=maxHits;
     //if (myHits <= maxHits && myShots > maxShots && random(1,20) <= myShots) {
